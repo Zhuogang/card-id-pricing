@@ -1,124 +1,61 @@
 # card-id-pricing
 
-Identify a trading card from a phone photo, then estimate its value with a range.
+A learning project that identifies English Pokémon trading cards from images and estimates their current reference prices using **free online data**.
 
-A toy learning project on public Pokémon TCG data. It covers two problems: fine-grained visual identification against a catalog of about 20,000 cards, and cold-start price estimation for cards with little or no price history. It is not a production system.
+Public card scans supply the catalog, downloaded real scenes supply evaluation images, and synthetic views support controlled experiments. No physical card collection or personal photography is required. Manual checks of public-image labels are allowed.
+
+The pricing experiment hides every price field for selected cards and predicts their reference prices from metadata, images, and visible prices of other cards in the same dated snapshot. It studies price imputation; it does not yet forecast future sale prices.
 
 ## Status
 
-Work in progress. The full plan is in [`PLAN.md`](PLAN.md). Milestones are checked off below as they finish, and every result is logged in [`results/results.csv`](results/results.csv).
+**Planning stage.** The repository has documentation but no implemented pipeline, environment lockfile, or measured model results.
 
-## How it works
+Read [the revised plan](PLAN.md) for the source validation, evaluation design, milestones, and completion criteria. It was revised on **2026-11-06** and is the authoritative plan. Follow [the implementation plan](IMPLEMENTATION_PLAN.md) for the twelve build steps, files, command interfaces, and acceptance checks. [The earlier guide](GUIDE.md) is retained as historical material and contains superseded assumptions.
 
-```mermaid
-flowchart LR
-    A["Phone photo"] --> B["Rectify card"]
-    B --> C["Retrieve top-k"]
-    C --> D["Rerank + OCR"]
-    D --> E{"Confident?"}
-    E -- no --> F["Human review"]
-    E -- yes --> G["Exact card id"]
-    S["Daily price snapshots"] --> M["Price model"]
-    G --> M
-    M --> V["Value + range"]
-```
+## What the first version teaches
 
-1. **Rectify:** find the card in the photo and warp it to a flat, front-facing view.
-2. **Retrieve:** embed the card and search the catalog for the closest matches.
-3. **Rerank and verify:** rescore the top candidates and check the collector number with OCR.
-4. **Abstain:** if confidence is low, return the top candidates for human review instead of guessing.
-5. **Price:** estimate value from card features and visually similar cards, with an 80% range.
+- Catalog identity, printing variants, data provenance, and reliable price joins.
+- Image embeddings, exact nearest-neighbor retrieval, geometry, and synthetic-to-real differences.
+- Candidate verification, confidence calibration, and abstention.
+- Price baselines, gradient boosting, feature leakage, and prediction intervals.
 
-## Results
+Fine-tuning, forecasting, collection totals, approximate indexes, and hosted serving are extensions.
 
-Filled in as milestones finish. All identification numbers are on a frozen set of real phone photos that is never used for training.
+## Intended behavior
 
-| Milestone | Metric | Result |
-| --- | --- | --- |
-| I2 Zero-shot retrieval | Top-1 / recall@20 | — |
-| I3 + Rectification | Top-1 | — |
-| I5 + Fine-tuned embedding | Top-1 | — |
-| I6 + Rerank and OCR | Top-1 | — |
-| I7 Abstention | Accuracy at 90% coverage | — |
-| P3 Price model, new sets | Median absolute % error | — |
-| P5 Price ranges | Coverage of 80% interval | — |
+A selected card image produces candidate catalog identities. Accepted matches show prices separately for supported printings, with source, currency, and snapshot date. Ambiguous matches need review.
 
-## Milestones
-
-**Identification**
-- [ ] I0 Catalog and look-alike map
-- [ ] I1 Frozen real evaluation set
-- [ ] I2 Zero-shot retrieval baseline
-- [ ] I3 Card detection and rectification
-- [ ] I4 Synthetic training data
-- [ ] I5 Fine-tuned embedding
-- [ ] I6 Reranking and verification
-- [ ] I7 Confidence and abstention
-- [ ] I8 Index and serving (stretch)
-
-**Pricing**
-- [ ] P0 Daily price collector
-- [ ] P1 Exploration and cleaning rules
-- [ ] P2 Baselines and the split
-- [ ] P3 Gradient boosting on card features
-- [ ] P4 Image-neighbor features
-- [ ] P5 Price ranges
-- [ ] P6 Noisy and thinly priced cards
-- [ ] P7 Short-horizon forecasting
-- [ ] P8 Graded premiums (optional)
-
-**Integration**
-- [ ] E1 End-to-end demo
-- [ ] E2 Collection value
-- [ ] E3 Technical report
-- [ ] E4 Adversarial review
+An available source quote is displayed as an observed reference price. In the hidden-price experiment, the model instead returns an estimate and interval. These outputs do not assess condition, authenticity, or the amount a particular physical card will sell for.
 
 ## Data
 
-| Source | Used for |
+| Source | Planned use |
 | --- | --- |
-| [pokemontcg.io](https://pokemontcg.io) API v2 | Card catalog, images, TCGplayer and Cardmarket prices |
-| Own phone photos | Real evaluation set (not published) |
-| Synthetic composites | Training views for the embedding model |
-| Daily price snapshots | Price history, collected by `src/prices/` |
+| [Pokémon TCG bulk catalog](https://github.com/PokemonTCG/pokemon-tcg-data) | Pinned initial card metadata and image references |
+| [TCGCSV](https://tcgcsv.com/docs) | Product records and a frozen TCGplayer price snapshot |
+| [TCG-AR public assets](https://github.com/ULiege-VIULab/tcg-ar/blob/main/docs/DATA.md) | Real scenes with card identities and corner annotations, after a full data audit |
+| [TCGdex](https://tcgdex.dev/) | Alternative catalog/image source and supporting mapping evidence |
+| Synthetic composites | Controlled image experiments and optional training |
 
-Card images and artwork belong to their owners and are not stored in this repo. The code stores card ids and image URLs only. Only APIs and datasets whose terms allow this use are used; nothing is scraped from marketplaces or grading services.
+The plan records which sources were actually probed and which checks remain. Downloaded assets will stay outside Git, with source manifests and applicable notices. The data-directory ignore rules still need to be added in M0.
 
-Pokémon and all related names are trademarks of their respective owners. This project is not affiliated with or endorsed by them.
+## First steps
 
-## Repo layout
+1. Create a minimal reproducible environment and record data sources.
+2. Validate a small catalog-to-price pilot.
+3. Freeze independent development, calibration, and test manifests.
+4. Run identification and price baselines before adding complexity.
 
-```
-card-id-pricing/
-  README.md
-  PLAN.md              # milestones, datasets, ground rules
-  LEARNING_LOG.md      # what I expected, what happened, what surprised me
-  data/                # gitignored; catalog, photos, prices
-  src/
-    catalog/           # download catalog, find look-alike groups
-    rectify/           # card detection and perspective correction
-    synth/             # synthetic training views
-    embed/             # embedding models, training, indexing
-    rerank/            # reranking and OCR checks
-    prices/            # daily collector and cleaning
-    pricing/           # price models
-    app/               # demo
-  notebooks/           # one per milestone, numbered
-  results/results.csv  # one row per experiment
-```
+No setup command is provided yet because the package and dependency files have not been created.
 
-## Setup
+## Results to report
 
-```bash
-git clone https://github.com/<you>/card-id-pricing.git
-cd card-id-pricing
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export POKEMONTCG_IO_API_KEY=<your free key from dev.pokemontcg.io>
-```
+| Experiment | Required evidence | Status |
+| --- | --- | --- |
+| Identification | Top-1, recall@k, gallery size, real versus synthetic results | Not run |
+| Abstention | Accuracy among accepted queries, acceptance coverage, unknown false acceptance | Not run |
+| Hidden-price estimation | Baseline comparison, log error, dollar error, price-tier counts | Not run |
+| Price intervals | Measured coverage and width, with calibration assumptions | Not run |
+| Integration | Separate observed quotes and estimates; effects of identification/mapping errors | Not run |
 
-## Ground rules
-
-1. Evaluation sets are frozen and versioned; a change means a new version, never an edit.
-2. Every experiment adds one row to `results/results.csv` with the git hash and config.
-3. One change at a time, compared against the previous best.
+Every completed milestone will include saved predictions, a reproducible configuration, and a learning-log entry.
